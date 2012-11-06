@@ -238,8 +238,6 @@ class Update
                         @ended = true
                         @stop()
         stop: ->
-                #if not @ended then @callbackEnd?()
-                #console.log @callback
                 if @subHandler then pubsub.unsubscribe @subHandler
                 @active = false
 
@@ -364,24 +362,38 @@ class Square
         moveTo: (@x, @y) ->
                 @xx = @x + @w
                 @yy = @y + @h
+                @moveFollowers()
                 @
         move: (x, y) ->
                 @x += x
                 @y += y
                 @xx += x
                 @yy += y
+                @moveFollowers()
                 @
         moveToX: (@x) ->
                 @xx = @x + @w
+                @moveFollowers()
                 @
         moveToY: (@y) ->
                 @yy = @y + @h
+                @moveFollowers()
                 @
         moveCenter: (x, y) ->
                 @x = x - @hw
                 @y = y - @hh
                 @xx = x + @hw
                 @yy = y + @hh
+                @moveFollowers()
+        moveFollowers: () ->
+                if not @followers or @followers.length is 0 then return @
+                @followers.forEach((elem) =>
+                        @moveFollower(elem)
+                )
+                @
+        moveFollower: (elem) ->
+                elem.moveCenter(@x + @hw + elem._xIndent, @y + @hh + elem._yIndent)
+                @
         vecSimplify: (x, y, speed) ->
                 {x: (x / speed) >> 0, y: (y / speed) >> 0}
         slideTo: (x, y, speed, callback = false) ->
@@ -396,7 +408,7 @@ class Square
                 @slideTo @x, @y + force, 2, =>
                         force += gravity
                         if @y > originalY
-                                @y = originalY
+                                @moveToY originalY
                                 @jumpingY = false
                                 if callback then callback()
                         else
@@ -443,6 +455,28 @@ class Square
                         if @yy > D then @moveToY(D - @h) ; vy *= -0.5
                         @move(vx, vy)
                         callback?()
+        follow: (node, xIndent, yIndent) ->
+                @following = node
+                node.addFollower(@, xIndent, yIndent)
+                @
+        addFollower: (node, xIndent, yIndent) ->
+                if not @followers then @followers = [] else if @followers.indexOf(node) isnt -1 then return @
+                node._xIndent = xIndent
+                node._yIndent = yIndent
+                @followers.push node
+                @moveFollower node
+                if not node.following then node.follow()
+                @
+        removeFollower: (node) ->
+                if not @followers or @followers.indexOf(node) is -1 then return @
+                node.following = false
+                @followers.splice(@followers.indexOf(node), 1)
+                @
+        unfollow: () ->
+                if not @following then return @
+                @following.removeFollower(@)
+                @following = false
+                @
 class Node
         constructor: () ->
                 @tile = @texture = @square = false
@@ -463,10 +497,11 @@ class Node
                 @tile?.stopAnimate()
                 delete @tile
         killTexture: () ->
-                @_drawTexture.stop()
+                @_drawTexture?.stop()
                 @texture?.stopAnimate()
                 delete @texture
         killSquare: () ->
+                @squre?.unfollow()
                 @square?.stopAnimate()
                 delete @square
         kill: () ->
@@ -496,8 +531,10 @@ class Node
                 @
         drawTile: (tile = @tile, square = @square, canvas) ->
                 @_drawTile = new Update(1, -1, (() => @drawImgSquare(tile, square, canvas)))
+                @
         drawTexture: (texture = @texture, square = @square, canvas) ->
                 @_drawTexture = new Update(1, -1, (() => @drawImgColSquare(texture, square, canvas)))
+                @
         drawImgColSquare: (texture, square, canvas) ->
                 i = 0
                 col = texture.col
@@ -509,6 +546,7 @@ class Node
                                 texture.imgW, texture.imgH
                                 )
                         i++
+                @
         drawImgSquare: (tile, square, canvas) ->
                 canvas.printImg(tile.img,
                                 square.x, square.y,
@@ -518,8 +556,10 @@ class Node
                                 tile.coords[tile.frameIndex].y,
                                 tile.coords[tile.frameIndex].w,
                                 tile.coords[tile.frameIndex].h)
+                @
         slideTo: (x, y, time, callback) ->
                 @square.slideTo(x, y, time, callback)
+                @
         move: (x, y) ->
                 @square.move x, y
         shake: (intensity, length, callback) ->
@@ -532,16 +572,19 @@ class Node
                 @square?.resize(w, h)
                 @
         moveCenter: (x, y) ->
-                @square.moveCenter x, y
-        move: (x, y) ->
-                @square.move x, y
-        follow: (node = false, speed = 1, xIndent = 0, yIndent = 0, callback = false) ->
-                if not node or not node.square then return false
-                followRun?.stop()
-                @followRun = new Update(speed, -1, (() => updatePosition()), (() => callback?()))
-                updatePosition = () =>
-                        @square.moveCenter(node.square.x + node.square.hw + xIndent,
-                                node.square.y + node.square.hh + yIndent)
+                @square?.moveCenter x, y
+        follow: (node = false, xIndent = 0, yIndent = 0) ->
+                if not node or not node.square or not @square then return false
+                # @followRun?.stop()
+                # @followRun = new Update(speed, -1, (() => updatePosition()), (() => callback?()))
+                # updatePosition = () =>
+                #         @square.moveCenter(node.square.x + node.square.hw + xIndent,
+                #                 node.square.y + node.square.hh + yIndent)
+                @square?.follow(node.square, xIndent, yIndent)
+                @
+        unfollow: () ->
+                @square?.unfollow()
+                @
 class Collection
         constructor: () ->
                 @col = []

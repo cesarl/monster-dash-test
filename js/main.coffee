@@ -54,35 +54,37 @@
         app.fullScreenOn()
         app.canvas = new Canvas app, "canvas", 512, 512
         app.event = new Event()
-
+        class People extends Node
+                constructor: ->
+                        super("Node")
         game = () ->
                 @
         game.start = () ->
                 @farBg = new Node()
-                @farBg.addSquare 0, 0, 0, 0
+                        .addSquare 0, 0, 0, 0
                 @farBg.addTexture farbg, app.farbg
-                @farBg.animateTexture 1, 0, 3, -1
-                @farBg.drawTexture null, null, app.canvas
+                @farBg.animateTexture(1, 0, 3, -1)
+                        .drawTexture null, null, app.canvas
 
                 @midBg = new Node()
-                @midBg.addSquare 0, 0, 0, 0
+                        .addSquare 0, 0, 0, 0
                 @midBg.addTexture midbg, app.midbg
-                @midBg.animateTexture 1.5, 0, 1, -1
-                @midBg.drawTexture null, null, app.canvas
+                @midBg.animateTexture(1.5, 0, 1, -1)
+                        .drawTexture null, null, app.canvas
 
-                @h = new Node()
-                @h.addSquare 32, 32, -100, -110
+                @h = new People()
+                        .addSquare 32, 32, -100, -110
                 @h.addTile barry, app.barry
-                @h.animateTile 0, 7, false, 4, -1
-                @h.slideTo 100, 300, 20
-                @h.drawTile null, null, app.canvas
+                @h.animateTile(0, 7, false, 4, -1)
+                        .slideTo(100, 300, 20)
+                        .drawTile null, null, app.canvas
                 @h._shoot = pubsub.subscribe("mousedown", =>
-                        if @shoot then @shoot.kill()
+                        if @shoot then @shoot.unfollow()
                         @shoot = new Node()
                         @shoot.addSquare 64, 32, 0, 0
                         @shoot.addTile shotgun_tile, app.shotgun
+                        @shoot.follow @h, 60, 30
                         @shoot.drawTile null, null, app.canvas
-                        @shoot.follow @h, 2, 60, 30
                         @shoot.animateTile 0, 7, false, 2, 1, (=> @shoot.kill())
                 )
                 @h._jumpYGravity = 1
@@ -96,7 +98,7 @@
                 @enemies = new Collection()
                 @enemies._spawn = @enemies.addCycle 60, -1, =>
                         node = new Node()
-                        node.addSquare 32, 32, 300, 300 #250 + Math.floor(Math.random() * 250)
+                        node.addSquare 32, 32, 600, 300
                         node.addTile mummy_tile, app.mummy
                         node.animateTile 0, 7, false, 4, -1
                         node.drawTile null, null, app.canvas

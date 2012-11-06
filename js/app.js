@@ -763,6 +763,7 @@ Square = (function() {
     this.y = y;
     this.xx = this.x + this.w;
     this.yy = this.y + this.h;
+    this.moveFollowers();
     return this;
   };
 
@@ -771,18 +772,21 @@ Square = (function() {
     this.y += y;
     this.xx += x;
     this.yy += y;
+    this.moveFollowers();
     return this;
   };
 
   Square.prototype.moveToX = function(x) {
     this.x = x;
     this.xx = this.x + this.w;
+    this.moveFollowers();
     return this;
   };
 
   Square.prototype.moveToY = function(y) {
     this.y = y;
     this.yy = this.y + this.h;
+    this.moveFollowers();
     return this;
   };
 
@@ -790,7 +794,24 @@ Square = (function() {
     this.x = x - this.hw;
     this.y = y - this.hh;
     this.xx = x + this.hw;
-    return this.yy = y + this.hh;
+    this.yy = y + this.hh;
+    return this.moveFollowers();
+  };
+
+  Square.prototype.moveFollowers = function() {
+    var _this = this;
+    if (!this.followers || this.followers.length === 0) {
+      return this;
+    }
+    this.followers.forEach(function(elem) {
+      return _this.moveFollower(elem);
+    });
+    return this;
+  };
+
+  Square.prototype.moveFollower = function(elem) {
+    elem.moveCenter(this.x + this.hw + elem._xIndent, this.y + this.hh + elem._yIndent);
+    return this;
   };
 
   Square.prototype.vecSimplify = function(x, y, speed) {
@@ -830,7 +851,7 @@ Square = (function() {
     this.slideTo(this.x, this.y + force, 2, function() {
       force += gravity;
       if (_this.y > originalY) {
-        _this.y = originalY;
+        _this.moveToY(originalY);
         _this.jumpingY = false;
         if (callback) {
           return callback();
@@ -947,6 +968,46 @@ Square = (function() {
     };
   };
 
+  Square.prototype.follow = function(node, xIndent, yIndent) {
+    this.following = node;
+    node.addFollower(this, xIndent, yIndent);
+    return this;
+  };
+
+  Square.prototype.addFollower = function(node, xIndent, yIndent) {
+    if (!this.followers) {
+      this.followers = [];
+    } else if (this.followers.indexOf(node) !== -1) {
+      return this;
+    }
+    node._xIndent = xIndent;
+    node._yIndent = yIndent;
+    this.followers.push(node);
+    this.moveFollower(node);
+    if (!node.following) {
+      node.follow();
+    }
+    return this;
+  };
+
+  Square.prototype.removeFollower = function(node) {
+    if (!this.followers || this.followers.indexOf(node) === -1) {
+      return this;
+    }
+    node.following = false;
+    this.followers.splice(this.followers.indexOf(node), 1);
+    return this;
+  };
+
+  Square.prototype.unfollow = function() {
+    if (!this.following) {
+      return this;
+    }
+    this.following.removeFollower(this);
+    this.following = false;
+    return this;
+  };
+
   return Square;
 
 })();
@@ -997,18 +1058,23 @@ Node = (function() {
   };
 
   Node.prototype.killTexture = function() {
-    var _ref;
-    this._drawTexture.stop();
-    if ((_ref = this.texture) != null) {
-      _ref.stopAnimate();
+    var _ref, _ref1;
+    if ((_ref = this._drawTexture) != null) {
+      _ref.stop();
+    }
+    if ((_ref1 = this.texture) != null) {
+      _ref1.stopAnimate();
     }
     return delete this.texture;
   };
 
   Node.prototype.killSquare = function() {
-    var _ref;
-    if ((_ref = this.square) != null) {
-      _ref.stopAnimate();
+    var _ref, _ref1;
+    if ((_ref = this.squre) != null) {
+      _ref.unfollow();
+    }
+    if ((_ref1 = this.square) != null) {
+      _ref1.stopAnimate();
     }
     return delete this.square;
   };
@@ -1077,9 +1143,10 @@ Node = (function() {
     if (square == null) {
       square = this.square;
     }
-    return this._drawTile = new Update(1, -1, (function() {
+    this._drawTile = new Update(1, -1, (function() {
       return _this.drawImgSquare(tile, square, canvas);
     }));
+    return this;
   };
 
   Node.prototype.drawTexture = function(texture, square, canvas) {
@@ -1090,29 +1157,31 @@ Node = (function() {
     if (square == null) {
       square = this.square;
     }
-    return this._drawTexture = new Update(1, -1, (function() {
+    this._drawTexture = new Update(1, -1, (function() {
       return _this.drawImgColSquare(texture, square, canvas);
     }));
+    return this;
   };
 
   Node.prototype.drawImgColSquare = function(texture, square, canvas) {
-    var col, i, _results;
+    var col, i;
     i = 0;
     col = texture.col;
-    _results = [];
     while (col[i]) {
       canvas.printImg(texture.img, col[i].x + this.square.x, col[i].y + this.square.y, texture.stretchW || texture.imgW, texture.stretchH || texture.imgH, texture.startX, texture.startY, texture.imgW, texture.imgH);
-      _results.push(i++);
+      i++;
     }
-    return _results;
+    return this;
   };
 
   Node.prototype.drawImgSquare = function(tile, square, canvas) {
-    return canvas.printImg(tile.img, square.x, square.y, tile.stretchW || tile.coords[tile.frameIndex].w, tile.stretchH || tile.coords[tile.frameIndex].h, tile.coords[tile.frameIndex].x, tile.coords[tile.frameIndex].y, tile.coords[tile.frameIndex].w, tile.coords[tile.frameIndex].h);
+    canvas.printImg(tile.img, square.x, square.y, tile.stretchW || tile.coords[tile.frameIndex].w, tile.stretchH || tile.coords[tile.frameIndex].h, tile.coords[tile.frameIndex].x, tile.coords[tile.frameIndex].y, tile.coords[tile.frameIndex].w, tile.coords[tile.frameIndex].h);
+    return this;
   };
 
   Node.prototype.slideTo = function(x, y, time, callback) {
-    return this.square.slideTo(x, y, time, callback);
+    this.square.slideTo(x, y, time, callback);
+    return this;
   };
 
   Node.prototype.move = function(x, y) {
@@ -1143,21 +1212,14 @@ Node = (function() {
   };
 
   Node.prototype.moveCenter = function(x, y) {
-    return this.square.moveCenter(x, y);
+    var _ref;
+    return (_ref = this.square) != null ? _ref.moveCenter(x, y) : void 0;
   };
 
-  Node.prototype.move = function(x, y) {
-    return this.square.move(x, y);
-  };
-
-  Node.prototype.follow = function(node, speed, xIndent, yIndent, callback) {
-    var updatePosition,
-      _this = this;
+  Node.prototype.follow = function(node, xIndent, yIndent) {
+    var _ref;
     if (node == null) {
       node = false;
-    }
-    if (speed == null) {
-      speed = 1;
     }
     if (xIndent == null) {
       xIndent = 0;
@@ -1165,23 +1227,21 @@ Node = (function() {
     if (yIndent == null) {
       yIndent = 0;
     }
-    if (callback == null) {
-      callback = false;
-    }
-    if (!node || !node.square) {
+    if (!node || !node.square || !this.square) {
       return false;
     }
-    if (typeof followRun !== "undefined" && followRun !== null) {
-      followRun.stop();
+    if ((_ref = this.square) != null) {
+      _ref.follow(node.square, xIndent, yIndent);
     }
-    this.followRun = new Update(speed, -1, (function() {
-      return updatePosition();
-    }), (function() {
-      return typeof callback === "function" ? callback() : void 0;
-    }));
-    return updatePosition = function() {
-      return _this.square.moveCenter(node.square.x + node.square.hw + xIndent, node.square.y + node.square.hh + yIndent);
-    };
+    return this;
+  };
+
+  Node.prototype.unfollow = function() {
+    var _ref;
+    if ((_ref = this.square) != null) {
+      _ref.unfollow();
+    }
+    return this;
   };
 
   return Node;
